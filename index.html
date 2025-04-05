@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pomodoro Timer | FlashCardPro+</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%238B5CF6'><path d='M12 2C6.486 2 2 6.486 2 12s4.486 10 10 10 10-4.486 10-10S17.514 2 12 2zm0 18c-4.411 0-8-3.589-8-8s3.589-8 8-8 8 3.589 8 8-3.589 8-8 8z'/><path d='M13 7h-2v5.414l3.293 3.293 1.414-1.414L13 11.586z'/></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827;
+            color: #f3f4f6;
+            overflow-y: auto;
+            min-height: 100vh;
+        }
+        
+        .timer-circle {
+            transition: all 0.3s ease;
+        }
+        
+        .progress-ring__circle {
+            transition: stroke-dashoffset 0.3s;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .animate-pulse-slow {
+            animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        .blob {
+            filter: blur(40px);
+            opacity: 0.2;
+        }
+        
+        .blob-1 {
+            animation: blob-move 15s infinite alternate;
+        }
+        
+        .blob-2 {
+            animation: blob-move 20s infinite alternate-reverse;
+        }
+        
+        .blob-3 {
+            animation: blob-move 25s infinite alternate;
+        }
+        
+        @keyframes blob-move {
+            0% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(50px, 100px) scale(1.2); }
+            100% { transform: translate(0, 0) scale(1); }
+        }
+
+        /* Modal styles */
+        .modal {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        
+        .modal-hidden {
+            opacity: 0;
+            transform: scale(0.95);
+            pointer-events: none;
+        }
+        
+        .modal-visible {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        /* Task completed style */
+        .task-completed {
+            text-decoration: line-through;
+            opacity: 0.6;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+
+        /* Focus mode transition */
+        .focus-transition {
+            transition: all 0.3s ease;
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 120px;
+            background-color: #374151;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 12px;
+        }
+        
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        /* Focus mode exit button */
+        #exit-focus-btn {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 100;
+        }
+        
+        .focus-mode-active #exit-focus-btn {
+            opacity: 1;
+        }
+
+        /* Three column layout */
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 24px;
+            width: 95%;
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 24px 0;
+        }
+
+        .left-column, .center-column, .right-column {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .timer-section {
+            grid-column: 1 / span 3;
+        }
+
+        @media (max-width: 1200px) {
+            .main-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .left-column, .center-column, .right-column {
+                grid-column: 1;
+            }
+        }
+    </style>
+</head>
+<body class="overflow-x-hidden">
+    <!-- Animated Background Blobs -->
+    <div class="fixed inset-0 overflow-hidden pointer-events-none z-0">
+        <div class="absolute top-1/4 left-1/4 w-64 h-64 bg-purple-600 rounded-full blob blob-1"></div>
+        <div class="absolute top-1/3 right-1/4 w-64 h-64 bg-indigo-600 rounded-full blob blob-2"></div>
+        <div class="absolute bottom-1/4 left-1/2 w-64 h-64 bg-pink-600 rounded-full blob blob-3"></div>
+    </div>
+
+    <div class="main-container relative z-10">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-8 timer-section">
+            <div class="flex items-center">
+                <motion.div animate={{ rotate: 360 }} transition={{ duration: 10, repeat: Infinity, ease: "linear" }}>
+                    <svg class="w-8 h-8 text-purple-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </motion.div>
+                <span class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-indigo-300">
+                    Pomodoro<span class="text-purple-500">+</span>
+                </span>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="tooltip">
+                    <button id="focus-mode-btn" class="text-gray-400 hover:text-white transition-colors">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <span class="tooltiptext">Modo Foco Total</span>
+                </div>
+                <button id="settings-btn" class="text-gray-400 hover:text-white transition-colors" title="Configurações">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <button id="fullscreen-btn" class="text-gray-400 hover:text-white transition-colors" title="Tela Cheia">
+                    <i class="fas fa-expand"></i>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Tabs -->
+        <div class="flex justify-center mb-8 focus-transition timer-section">
+            <div class="inline-flex bg-gray-800 rounded-full p-1 shadow-lg">
+                <button class="px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-medium focus:outline-none transition hover:from-purple-700 hover:to-indigo-700">
+                    Pomodoro
+                </button>
+                <button class="px-4 py-2 rounded-full text-gray-400 font-medium focus:outline-none hover:bg-gray-700 transition">
+                    Short Break
+                </button>
+                <button class="px-4 py-2 rounded-full text-gray-400 font-medium focus:outline-none hover:bg-gray-700 transition">
+                    Long Break
+                </button>
+            </div>
+        </div>
+        
+        <!-- Timer -->
+        <div id="focus-area" class="bg-gray-800/50 backdrop-blur-sm rounded-3xl shadow-xl p-8 mb-8 border border-gray-700 focus-transition timer-section">
+            <div class="relative w-64 h-64 mx-auto mb-8">
+                <!-- Progress Ring -->
+                <svg class="w-full h-full" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="45" fill="none" stroke="#374151" stroke-width="6"/>
+                    <circle class="progress-ring__circle" cx="50" cy="50" r="45" fill="none" stroke="url(#gradient)" stroke-width="6" stroke-dasharray="283" stroke-dashoffset="70.75"/>
+                    <defs>
+                        <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#8B5CF6" />
+                            <stop offset="100%" stop-color="#6366F1" />
+                        </linearGradient>
+                    </defs>
+                </svg>
+                
+                <!-- Timer Display -->
+                <div class="absolute inset-0 flex flex-col items-center justify-center">
+                    <div class="text-5xl font-bold text-white mb-2" id="time-display">25:00</div>
+                    <button class="text-lg font-medium text-purple-400 hover:text-purple-300 focus:outline-none transition-colors" id="start-pause-btn">
+                        START
+                    </button>
+                    <button class="mt-2 text-gray-400 hover:text-white transition-colors" id="reset-btn" title="Reiniciar">
+                        <i class="fas fa-rotate-right fa-lg"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Three column content -->
+        <div class="left-column">
+            <!-- Daily Tasks -->
+            <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 focus-transition">
+                <h3 class="text-lg font-semibold text-white mb-4">No que está focando hoje?</h3>
+                <div class="flex items-center mb-4">
+                    <input id="new-task-input" type="text" placeholder="Adicionar nova tarefa..." class="flex-1 py-2 px-3 bg-gray-700 text-white rounded-l border-t border-l border-b border-gray-600 focus:outline-none" />
+                    <button id="add-task-btn" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-r transition">+</button>
+                </div>
+                <div id="task-list" class="space-y-2 max-h-96 overflow-y-auto pr-2"></div>
+            </div>
+            
+            <!-- Stats -->
+            <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 focus-transition">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-white">Progresso do dia</h3>
+                    <button class="text-gray-500 hover:text-white focus:outline-none transition-colors">
+                        <i class="fas fa-ellipsis-h"></i>
+                    </button>
+                </div>
+                
+                <div class="flex space-x-4 mb-4">
+                    <div class="flex-1 bg-gray-700/50 rounded-lg p-4 text-center border border-gray-600">
+                        <div class="text-2xl font-bold text-purple-400 mb-1" id="completed-sessions">0</div>
+                        <div class="text-sm text-gray-400">Concluídas</div>
+                    </div>
+                    <div class="flex-1 bg-gray-700/50 rounded-lg p-4 text-center border border-gray-600">
+                        <div class="text-2xl font-bold text-indigo-400 mb-1" id="total-sessions">0</div>
+                        <div class="text-sm text-gray-400">Totais</div>
+                    </div>
+                </div>
+                
+                <div class="w-full bg-gray-700 rounded-full h-2.5">
+                    <div class="bg-gradient-to-r from-purple-500 to-indigo-500 h-2.5 rounded-full" id="progress-bar" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="center-column">
+            <!-- Learning Section 1 -->
+            <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 focus-transition">
+                <h3 class="text-lg font-semibold text-white mb-4">O Poder do Pomodoro:</h3>
+                
+                <div class="space-y-4 text-gray-300">
+                    <div class="bg-gray-700/50 p-4 rounded-lg border border-gray-600">
+                        <h4 class="font-medium text-purple-400 mb-2">📊 Por que o Método Pomodoro funciona?</h4>
+                        <p class="text-sm">A técnica Pomodoro combate a procrastinação e aumenta a produtividade ao dividir o trabalho em blocos de 25 minutos (pomodoros) seguidos por pausas curtas. Isso mantém sua mente fresca e focada, evitando o esgotamento mental.</p>
+                    </div>
+                    
+                    <div class="bg-gray-700/50 p-4 rounded-lg border border-gray-600">
+                        <h4 class="font-medium text-indigo-400 mb-2">🧠 A Ciência por Trás dos Intervalos</h4>
+                        <p class="text-sm">Nosso cérebro tem um limite de atenção sustentada. As pausas regulares permitem que o cérebro consolide a informação aprendida, melhorando a retenção a longo prazo.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Learning Section 2 -->
+            <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 focus-transition">
+                <h3 class="text-lg font-semibold text-white mb-4">Dicas Avançadas:</h3>
+                
+                <div class="space-y-4 text-gray-300">
+                    <div class="bg-gray-700/50 p-4 rounded-lg border border-gray-600">
+                        <h4 class="font-medium text-pink-400 mb-2">⏱️ Personalize seus intervalos</h4>
+                        <p class="text-sm">Experimente ajustar a duração dos pomodoros e pausas para encontrar o ritmo ideal para você. Algumas pessoas rendem melhor com blocos de 50 minutos, outras com 30.</p>
+                    </div>
+                    
+                    <div class="bg-gray-700/50 p-4 rounded-lg border border-gray-600">
+                        <h4 class="font-medium text-purple-300 mb-2">📝 Tarefas complexas</h4>
+                        <p class="text-sm">Para tarefas complexas, divida em subtarefas menores que possam ser concluídas em um ou dois pomodoros. Isso dá senso de progresso e mantém a motivação.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="right-column">
+            <!-- Learning Section 3 -->
+            <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 focus-transition">
+                <h3 class="text-lg font-semibold text-white mb-4">Técnicas Complementares:</h3>
+                
+                <div class="space-y-4 text-gray-300">
+                    <div class="bg-gray-700/50 p-4 rounded-lg border border-gray-600">
+                        <h4 class="font-medium text-pink-400 mb-2">🔁 Revisão Espaçada + Pomodoro = Memorização Perfeita</h4>
+                        <p class="text-sm">Quando combinamos o Pomodoro com revisões espaçadas (usando flashcards), criamos o ambiente ideal para aprendizagem profunda. A técnica de repetição espaçada mostra a informação no momento exato antes que você esqueça, fortalecendo a memória.</p>
+                    </div>
+                    
+                    <div class="bg-gray-700/50 p-4 rounded-lg border border-gray-600">
+                        <h4 class="font-medium text-purple-300 mb-2">🎯 Como Potencializar seus Estudos</h4>
+                        <ul class="text-sm list-disc pl-5 space-y-1">
+                            <li>Use 1 Pomodoro para estudar novos conceitos</li>
+                            <li>Use o próximo Pomodoro para revisar com flashcards</li>
+                            <li>Nas pausas, faça uma caminhada curta - movimento ajuda a fixação</li>
+                            <li>No final do dia, revise rapidamente os flashcards marcados como difíceis</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Learning Section 4 -->
+            <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 focus-transition">
+                <h3 class="text-lg font-semibold text-white mb-4">Ferramentas Úteis:</h3>
+                
+                <div class="space-y-4 text-gray-300">
+                    <div class="bg-gray-700/50 p-4 rounded-lg border border-gray-600">
+                        <h4 class="font-medium text-indigo-400 mb-2">📱 Aplicativos recomendados</h4>
+                        <p class="text-sm">Combine este timer com apps de flashcards como Anki ou Quizlet para maximizar sua aprendizagem durante os pomodoros.</p>
+                    </div>
+                    
+                    <div class="bg-gray-700/50 p-4 rounded-lg border border-gray-600">
+                        <h4 class="font-medium text-purple-400 mb-2">🔄 Fluxo de trabalho ideal</h4>
+                        <p class="text-sm">Após cada 4 pomodoros, faça uma pausa mais longa (15-30 minutos). Use esse tempo para alongar, meditar ou fazer uma caminhada rápida.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Exit Focus Mode Button (hidden by default) -->
+    <button id="exit-focus-btn" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg shadow-lg transition">
+        <i class="fas fa-times mr-2"></i> Sair do Modo Foco
+    </button>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 modal modal-hidden">
+        <div class="bg-gray-800 rounded-xl shadow-2xl w-full max-w-md border border-gray-700 overflow-hidden">
+            <div class="flex justify-between items-center p-6 border-b border-gray-700">
+                <h3 class="text-xl font-semibold text-white">Configurações do Pomodoro</h3>
+                <button id="close-modal" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="p-6">
+                <div class="grid grid-cols-1 gap-6">
+                    <div>
+                        <label class="block text-gray-300 mb-2" for="modal-pomodoro-time">Pomodoro (minutos):</label>
+                        <input id="modal-pomodoro-time" type="number" min="1" class="w-full px-4 py-2 bg-gray-700 text-white rounded-lg focus:ring-2 focus:ring-purple-600 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-gray-300 mb-2" for="modal-short-break">Pausa Curta (minutos):</label>
+                        <input id="modal-short-break" type="number" min="1" class="w-full px-4 py-2 bg-gray-700 text-white rounded-lg focus:ring-2 focus:ring-purple-600 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-gray-300 mb-2" for="modal-long-break">Pausa Longa (minutos):</label>
+                        <input id="modal-long-break" type="number" min="1" class="w-full px-4 py-2 bg-gray-700 text-white rounded-lg focus:ring-2 focus:ring-purple-600 focus:outline-none">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="p-6 border-t border-gray-700 flex justify-end space-x-3">
+                <button id="cancel-settings" class="px-6 py-2 text-gray-300 hover:text-white rounded-lg transition">
+                    Cancelar
+                </button>
+                <button id="save-settings" class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition">
+                    Salvar Configurações
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Timer logic
+        // Load or set default timer settings
+        let settings = {
+            pomodoro: 25,
+            short: 5,
+            long: 15
+        };
+
+        if (localStorage.getItem('pomodoroSettings')) {
+            settings = JSON.parse(localStorage.getItem('pomodoroSettings'));
+        }
+
+        let currentMode = 'pomodoro'; // 'pomodoro' | 'short' | 'long'
+        let minutes = settings.pomodoro;
+        let seconds = 0;
+        let isRunning = false;
+        let timerInterval;
+        let completedSessions = parseInt(localStorage.getItem('completedSessions')) || 0;
+        let totalSessions = parseInt(localStorage.getItem('totalSessions')) || 0;
+        
+        const timeDisplay = document.getElementById('time-display');
+        const startPauseBtn = document.getElementById('start-pause-btn');
+        const progressCircle = document.querySelector('.progress-ring__circle');
+        const completedSessionsEl = document.getElementById('completed-sessions');
+        const totalSessionsEl = document.getElementById('total-sessions');
+        const progressBar = document.getElementById('progress-bar');
+        const fullscreenBtn = document.getElementById('fullscreen-btn');
+        const settingsBtn = document.getElementById('settings-btn');
+        const settingsModal = document.getElementById('settings-modal');
+        const closeModalBtn = document.getElementById('close-modal');
+        const cancelSettingsBtn = document.getElementById('cancel-settings');
+        const saveSettingsBtn = document.getElementById('save-settings');
+        const focusBtn = document.getElementById('focus-mode-btn');
+        const exitFocusBtn = document.getElementById('exit-focus-btn');
+        const focusArea = document.getElementById('focus-area');
+        let isFocusMode = false;
+        
+        // Modal functions
+        function openModal() {
+            // Fill modal inputs with current settings
+            document.getElementById('modal-pomodoro-time').value = settings.pomodoro;
+            document.getElementById('modal-short-break').value = settings.short;
+            document.getElementById('modal-long-break').value = settings.long;
+            
+            settingsModal.classList.remove('modal-hidden');
+            settingsModal.classList.add('modal-visible');
+        }
+
+        function closeModal() {
+            settingsModal.classList.remove('modal-visible');
+            settingsModal.classList.add('modal-hidden');
+        }
+        
+        function updateDisplay() {
+            timeDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            // Update progress circle (for current mode's time)
+            const totalSeconds = settings[currentMode] * 60;
+            const remainingSeconds = minutes * 60 + seconds;
+            const offset = (remainingSeconds / totalSeconds) * 283;
+            progressCircle.style.strokeDashoffset = offset;
+            
+            // Update stats
+            completedSessionsEl.textContent = completedSessions;
+            totalSessionsEl.textContent = totalSessions;
+            progressBar.style.width = totalSessions > 0 ? `${(completedSessions / totalSessions) * 100}%` : '0%';
+        }
+        
+        function toggleTimer() {
+            if (isRunning) {
+                clearInterval(timerInterval);
+                startPauseBtn.textContent = 'START';
+                startPauseBtn.classList.remove('animate-pulse-slow');
+            } else {
+                timerInterval = setInterval(() => {
+                    if (seconds === 0) {
+                        if (minutes === 0) {
+                            clearInterval(timerInterval);
+                            
+                            // Play sound and show notification
+                            const audio = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-alarm-digital-clock-beep-989.mp3');
+                            audio.play();
+                            
+                            // Notification
+                            if (Notification.permission === 'granted') {
+                                new Notification('Pomodoro Completo!', {
+                                    body: 'Hora de uma pausa!',
+                                    icon: 'https://placehold.co/128/8B5CF6/white?text=P+'
+                                });
+                            }
+                            
+                            // Change button to "START" and reset timer
+                            isRunning = false;
+                            startPauseBtn.textContent = 'START';
+                            startPauseBtn.classList.remove('animate-pulse-slow');
+                            return;
+                        }
+                        minutes--;
+                        seconds = 59;
+                    } else {
+                        seconds--;
+                    }
+                    updateDisplay();
+                }, 1000);
+                startPauseBtn.textContent = 'PAUSE';
+                startPauseBtn.classList.add('animate-pulse-slow');
+            }
+            isRunning = !isRunning;
+        }
+        
+        function resetTimer() {
+            clearInterval(timerInterval);
+            minutes = settings[currentMode];
+            seconds = 0;
+            isRunning = false;
+            startPauseBtn.textContent = 'START';
+            startPauseBtn.classList.remove('animate-pulse-slow');
+            updateDisplay();
+        }
+        
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.error(`Error attempting to enable fullscreen: ${err.message}`);
+                });
+                fullscreenBtn.innerHTML = '<i class="fas fa-compress"></i>';
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                    fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
+                }
+            }
+        }
+
+        // Focus mode toggle
+        function toggleFocusMode() {
+            isFocusMode = !isFocusMode;
+            
+            if (isFocusMode) {
+                document.body.classList.add('focus-mode-active');
+                const elementsToHide = document.querySelectorAll(".left-column, .center-column, .right-column");
+                
+                elementsToHide.forEach(el => {
+                    el.style.display = 'none';
+                });
+
+                focusBtn.innerHTML = '<i class="fas fa-eye-slash"></i>';
+                
+                // Ajustar foco visual
+                focusArea.classList.add("scale-[1.25]", "transition-transform");
+                document.body.classList.add("flex", "items-center", "justify-center");
+                focusArea.classList.remove("mb-8");
+            } else {
+                document.body.classList.remove('focus-mode-active');
+                const elementsToShow = document.querySelectorAll(".left-column, .center-column, .right-column");
+                
+                elementsToShow.forEach(el => {
+                    el.style.display = '';
+                });
+
+                focusBtn.innerHTML = '<i class="fas fa-eye"></i>';
+                
+                focusArea.classList.remove("scale-[1.25]");
+                document.body.classList.remove("flex", "items-center", "justify-center");
+                focusArea.classList.add("mb-8");
+            }
+        }
+
+        focusBtn.addEventListener('click', toggleFocusMode);
+        exitFocusBtn.addEventListener('click', toggleFocusMode);
+        
+        // --- To-Do List ---
+        let tasks = JSON.parse(localStorage.getItem('pomodoroTasks')) || [];
+
+        const taskList = document.getElementById('task-list');
+        const newTaskInput = document.getElementById('new-task-input');
+        const addTaskBtn = document.getElementById('add-task-btn');
+
+        // Renderiza as tarefas
+        function renderTasks() {
+            taskList.innerHTML = '';
+            tasks.forEach((task, index) => {
+                const taskItem = document.createElement('div');
+                taskItem.className = "flex items-center bg-gray-700/50 rounded-lg p-3 border border-gray-600";
+                
+                const checkBtn = document.createElement('button');
+                checkBtn.className = `w-5 h-5 rounded-full border-2 mr-3 flex items-center justify-center focus:outline-none transition-colors ${task.completed ? 'border-purple-500 bg-purple-500' : 'border-gray-500 hover:border-purple-500'}`;
+                checkBtn.innerHTML = task.completed ? '<i class="fas fa-check text-white text-xs"></i>' : '';
+                checkBtn.addEventListener('click', () => toggleTask(index));
+                
+                const taskText = document.createElement('span');
+                taskText.textContent = task.text;
+                taskText.className = `flex-1 text-white ${task.completed ? 'task-completed' : ''}`;
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+                deleteBtn.className = 'text-gray-400 hover:text-red-500 ml-4 transition-colors';
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteTask(index);
+                });
+
+                taskItem.appendChild(checkBtn);
+                taskItem.appendChild(taskText);
+                taskItem.appendChild(deleteBtn);
+                taskList.appendChild(taskItem);
+            });
+        }
+
+        // Adiciona nova tarefa
+        function addTask() {
+            const text = newTaskInput.value.trim();
+            if (text !== '') {
+                tasks.push({ text, completed: false });
+                saveTasks();
+                renderTasks();
+                newTaskInput.value = '';
+            }
+        }
+
+        // Marca como concluída/não concluída
+        function toggleTask(index) {
+            tasks[index].completed = !tasks[index].completed;
+            saveTasks();
+            renderTasks();
+        }
+
+        // Deleta tarefa
+        function deleteTask(index) {
+            tasks.splice(index, 1);
+            saveTasks();
+            renderTasks();
+        }
+
+        // Salva no localStorage
+        function saveTasks() {
+            localStorage.setItem('pomodoroTasks', JSON.stringify(tasks));
+
+            // Atualiza os contadores com base nas tarefas
+            completedSessions = tasks.filter(t => t.completed).length;
+            totalSessions = tasks.length;
+
+            localStorage.setItem('completedSessions', completedSessions);
+            localStorage.setItem('totalSessions', totalSessions);
+
+            updateDisplay(); // Atualiza os elementos visuais
+        }
+
+        // Event listeners
+        startPauseBtn.addEventListener('click', toggleTimer);
+        fullscreenBtn.addEventListener('click', toggleFullscreen);
+        settingsBtn.addEventListener('click', openModal);
+        closeModalBtn.addEventListener('click', closeModal);
+        cancelSettingsBtn.addEventListener('click', closeModal);
+        addTaskBtn.addEventListener('click', addTask);
+        newTaskInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter') addTask();
+        });
+        document.getElementById('reset-btn').addEventListener('click', resetTimer);
+        
+        // Save settings
+        saveSettingsBtn.addEventListener('click', () => {
+            const pomodoro = parseInt(document.getElementById('modal-pomodoro-time').value);
+            const short = parseInt(document.getElementById('modal-short-break').value);
+            const long = parseInt(document.getElementById('modal-long-break').value);
+
+            if (pomodoro > 0 && short > 0 && long > 0) {
+                settings = { pomodoro, short, long };
+                localStorage.setItem('pomodoroSettings', JSON.stringify(settings));
+                resetTimer();
+                closeModal();
+            } else {
+                alert("Todos os tempos devem ser maiores que zero.");
+            }
+        });
+        
+        // Close modal when clicking outside
+        settingsModal.addEventListener('click', (e) => {
+            if (e.target === settingsModal) {
+                closeModal();
+            }
+        });
+
+        // Notification permission
+        if (Notification.permission !== 'granted') {
+            Notification.requestPermission();
+        }
+        
+        // Initialize display
+        updateDisplay();
+        renderTasks();
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                toggleTimer();
+            }
+            
+            if (e.code === 'KeyR') {
+                e.preventDefault();
+                resetTimer();
+            }
+            
+            if (e.code === 'KeyF') {
+                e.preventDefault();
+                toggleFullscreen();
+            }
+        });
+
+        // Troca de modo (Pomodoro / Short / Long)
+        const tabButtons = document.querySelectorAll(".inline-flex button");
+        tabButtons.forEach(btn => {
+            btn.addEventListener("click", () => {
+                const label = btn.textContent.trim();
+                tabButtons.forEach(b => b.classList.remove("bg-gradient-to-r", "from-purple-600", "to-indigo-600", "text-white"));
+                btn.classList.add("bg-gradient-to-r", "from-purple-600", "to-indigo-600", "text-white");
+
+                if (label === "Pomodoro") currentMode = 'pomodoro';
+                if (label === "Short Break") currentMode = 'short';
+                if (label === "Long Break") currentMode = 'long';
+
+                resetTimer();
+            });
+        });
+    </script>
+    <!-- Rodapé -->
+    <footer class="w-full py-6 text-center border-t border-gray-800 mt-12">
+        <div class="text-gray-400 text-sm">
+            <p>&copy; <span id="current-year">2023</span> Pomodoro Timer - controle seu tempo</p>
+            <p class="mt-1">Desenvolvido por <span class="font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-indigo-300">Erique Melo</span></p>
+        </div>
+    </footer>
+
+    <script>
+        // Atualiza o ano automaticamente
+        document.getElementById('current-year').textContent = new Date().getFullYear();
+    </script>
+</body>
+</html>
