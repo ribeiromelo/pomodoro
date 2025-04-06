@@ -713,23 +713,31 @@
         updateDisplay();
         renderTasks();
         
-        // Keyboard shortcuts
+        // Keyboard shortcuts (com proteção para inputs)
         document.addEventListener('keydown', (e) => {
-            if (e.code === 'Space') {
-                e.preventDefault();
-                toggleTimer();
-            }
-            
-            if (e.code === 'KeyR') {
-                e.preventDefault();
-                resetTimer();
-            }
-            
-            if (e.code === 'KeyF') {
-                e.preventDefault();
-                toggleFullscreen();
-            }
-        });
+        const isTyping =
+        document.activeElement.tagName === 'INPUT' ||
+        document.activeElement.tagName === 'TEXTAREA' ||
+        document.activeElement.isContentEditable;
+
+    if (!isTyping) {
+        if (e.code === 'Space') {
+            e.preventDefault();
+            toggleTimer();
+        }
+
+        if (e.code === 'KeyR') {
+            e.preventDefault();
+            resetTimer();
+        }
+
+        if (e.code === 'KeyF') {
+            e.preventDefault();
+            toggleFullscreen();
+        }
+    }
+});
+
 
         // Troca de modo (Pomodoro / Short / Long)
         const tabButtons = document.querySelectorAll(".inline-flex button");
