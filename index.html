@@ -16,6 +16,52 @@
             color: #f3f4f6;
             overflow-y: auto;
             min-height: 100vh;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        body.light-mode {
+            background-color: #f3f4f6;
+            color: #111827;
+        }
+        
+        .light-mode .bg-gray-800 {
+            background-color: #e5e7eb !important;
+        }
+
+        .light-mode .bg-gray-800\/50 {
+            background-color: rgba(229, 231, 235, 0.5) !important;
+        }
+
+        .light-mode .bg-gray-700 {
+            background-color: #d1d5db !important;
+        }
+
+        .light-mode .bg-gray-700\/50 {
+            background-color: rgba(209, 213, 219, 0.5) !important;
+        }
+
+        .light-mode .text-gray-300 {
+            color: #4b5563 !important;
+        }
+
+        .light-mode .text-gray-400 {
+            color: #6b7280 !important;
+        }
+
+        .light-mode .border-gray-600 {
+            border-color: #9ca3af !important;
+        }
+
+        .light-mode .border-gray-700 {
+            border-color: #d1d5db !important;
+        }
+
+        .light-mode .text-white {
+            color: #111827 !important;
+        }
+
+        .light-mode .bg-gray-900 {
+            background-color: #f9fafb !important;
         }
         
         .timer-circle {
@@ -26,6 +72,7 @@
             transition: stroke-dashoffset 0.3s;
             transform: rotate(-90deg);
             transform-origin: 50% 50%;
+            stroke-dashoffset: 283;
         }
         
         @keyframes pulse {
@@ -91,6 +138,10 @@
             background: #1f2937;
         }
         
+        .light-mode ::-webkit-scrollbar-track {
+            background: #e5e7eb;
+        }
+        
         ::-webkit-scrollbar-thumb {
             background: #4b5563;
             border-radius: 4px;
@@ -127,6 +178,11 @@
             opacity: 0;
             transition: opacity 0.3s;
             font-size: 12px;
+        }
+
+        .light-mode .tooltip .tooltiptext {
+            background-color: #d1d5db;
+            color: #111827;
         }
         
         .tooltip:hover .tooltiptext {
@@ -179,6 +235,26 @@
                 grid-column: 1;
             }
         }
+
+        /* Button press effect */
+        .btn-press:active {
+            transform: scale(0.95);
+        }
+
+        /* Task animation */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .task-item {
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        /* Footer in focus mode */
+        .focus-mode-active footer {
+            display: none;
+        }
     </style>
 </head>
 <body class="overflow-x-hidden">
@@ -193,26 +269,29 @@
         <!-- Header -->
         <div class="flex justify-between items-center mb-8 timer-section">
             <div class="flex items-center">
-                <motion.div animate={{ rotate: 360 }} transition={{ duration: 10, repeat: Infinity, ease: "linear" }}>
+                <div>
                     <svg class="w-8 h-8 text-purple-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                </motion.div>
+                </div>
                 <span class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-indigo-300">
                     Pomodoro<span class="text-purple-500">+</span>
                 </span>
             </div>
             <div class="flex items-center space-x-4">
+                <button id="theme-toggle" class="text-gray-400 hover:text-purple-500 transition-colors" title="Alternar tema">
+                    <i class="fas fa-moon" id="theme-icon"></i>
+                </button>
                 <div class="tooltip">
-                    <button id="focus-mode-btn" class="text-gray-400 hover:text-white transition-colors">
+                    <button id="focus-mode-btn" class="text-gray-400 hover:text-purple-500 transition-colors">
                         <i class="fas fa-eye"></i>
                     </button>
                     <span class="tooltiptext">Modo Foco Total</span>
                 </div>
-                <button id="settings-btn" class="text-gray-400 hover:text-white transition-colors" title="Configurações">
+                <button id="settings-btn" class="text-gray-400 hover:text-purple-500 transition-colors" title="Configurações">
                     <i class="fas fa-cog"></i>
                 </button>
-                <button id="fullscreen-btn" class="text-gray-400 hover:text-white transition-colors" title="Tela Cheia">
+                <button id="fullscreen-btn" class="text-gray-400 hover:text-purple-500 transition-colors" title="Tela Cheia">
                     <i class="fas fa-expand"></i>
                 </button>
             </div>
@@ -221,13 +300,13 @@
         <!-- Tabs -->
         <div class="flex justify-center mb-8 focus-transition timer-section">
             <div class="inline-flex bg-gray-800 rounded-full p-1 shadow-lg">
-                <button class="px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-medium focus:outline-none transition hover:from-purple-700 hover:to-indigo-700">
+                <button id="pomodoro-tab" class="px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-medium focus:outline-none transition hover:from-purple-700 hover:to-indigo-700">
                     Pomodoro
                 </button>
-                <button class="px-4 py-2 rounded-full text-gray-400 font-medium focus:outline-none hover:bg-gray-700 transition">
+                <button id="short-tab" class="px-4 py-2 rounded-full text-gray-400 font-medium focus:outline-none hover:bg-gray-700 transition">
                     Short Break
                 </button>
-                <button class="px-4 py-2 rounded-full text-gray-400 font-medium focus:outline-none hover:bg-gray-700 transition">
+                <button id="long-tab" class="px-4 py-2 rounded-full text-gray-400 font-medium focus:outline-none hover:bg-gray-700 transition">
                     Long Break
                 </button>
             </div>
@@ -239,7 +318,7 @@
                 <!-- Progress Ring -->
                 <svg class="w-full h-full" viewBox="0 0 100 100">
                     <circle cx="50" cy="50" r="45" fill="none" stroke="#374151" stroke-width="6"/>
-                    <circle class="progress-ring__circle" cx="50" cy="50" r="45" fill="none" stroke="url(#gradient)" stroke-width="6" stroke-dasharray="283" stroke-dashoffset="70.75"/>
+                    <circle class="progress-ring__circle" cx="50" cy="50" r="45" fill="none" stroke="url(#gradient)" stroke-width="6" stroke-dasharray="283" stroke-dashoffset="283"/>
                     <defs>
                         <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
                             <stop offset="0%" stop-color="#8B5CF6" />
@@ -251,10 +330,10 @@
                 <!-- Timer Display -->
                 <div class="absolute inset-0 flex flex-col items-center justify-center">
                     <div class="text-5xl font-bold text-white mb-2" id="time-display">25:00</div>
-                    <button class="text-lg font-medium text-purple-400 hover:text-purple-300 focus:outline-none transition-colors" id="start-pause-btn">
+                    <button class="text-lg font-medium text-purple-400 hover:text-purple-300 focus:outline-none transition-colors btn-press" id="start-pause-btn">
                         START
                     </button>
-                    <button class="mt-2 text-gray-400 hover:text-white transition-colors" id="reset-btn" title="Reiniciar">
+                    <button class="mt-2 text-gray-400 hover:text-white transition-colors btn-press" id="reset-btn" title="Reiniciar">
                         <i class="fas fa-rotate-right fa-lg"></i>
                     </button>
                 </div>
@@ -267,8 +346,8 @@
             <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 focus-transition">
                 <h3 class="text-lg font-semibold text-white mb-4">No que está focando hoje?</h3>
                 <div class="flex items-center mb-4">
-                    <input id="new-task-input" type="text" placeholder="Adicionar nova tarefa..." class="flex-1 py-2 px-3 bg-gray-700 text-white rounded-l border-t border-l border-b border-gray-600 focus:outline-none" />
-                    <button id="add-task-btn" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-r transition">+</button>
+                    <input id="new-task-input" type="text" placeholder="Adicionar nova tarefa..." class="flex-1 py-2 px-3 bg-gray-700 text-white rounded-l border-t border-l border-b border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                    <button id="add-task-btn" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-r transition btn-press">+</button>
                 </div>
                 <div id="task-list" class="space-y-2 max-h-96 overflow-y-auto pr-2"></div>
             </div>
@@ -406,14 +485,22 @@
                         <label class="block text-gray-300 mb-2" for="modal-long-break">Pausa Longa (minutos):</label>
                         <input id="modal-long-break" type="number" min="1" class="w-full px-4 py-2 bg-gray-700 text-white rounded-lg focus:ring-2 focus:ring-purple-600 focus:outline-none">
                     </div>
+                    <div>
+                        <label class="block text-gray-300 mb-2" for="sound-selector">Som de Notificação:</label>
+                        <select id="sound-selector" class="w-full px-4 py-2 bg-gray-700 text-white rounded-lg focus:ring-2 focus:ring-purple-600 focus:outline-none">
+                            <option value="1">Som Clássico</option>
+                            <option value="2">Sino</option>
+                            <option value="3">Alarme Digital</option>
+                        </select>
+                    </div>
                 </div>
             </div>
             
             <div class="p-6 border-t border-gray-700 flex justify-end space-x-3">
-                <button id="cancel-settings" class="px-6 py-2 text-gray-300 hover:text-white rounded-lg transition">
+                <button id="cancel-settings" class="px-6 py-2 text-gray-300 hover:text-white rounded-lg transition btn-press">
                     Cancelar
                 </button>
-                <button id="save-settings" class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition">
+                <button id="save-settings" class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition btn-press">
                     Salvar Configurações
                 </button>
             </div>
@@ -426,11 +513,25 @@
         let settings = {
             pomodoro: 25,
             short: 5,
-            long: 15
+            long: 15,
+            sound: "1"
         };
 
         if (localStorage.getItem('pomodoroSettings')) {
             settings = JSON.parse(localStorage.getItem('pomodoroSettings'));
+        }
+
+        // Sound options
+        const sounds = {
+            "1": "https://assets.mixkit.co/sfx/preview/mixkit-alarm-digital-clock-beep-989.mp3",
+            "2": "https://assets.mixkit.co/sfx/preview/mixkit-melodic-bonus-collect-1938.mp3",
+            "3": "https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3"
+        };
+
+        // Load theme preference
+        if (localStorage.getItem('theme') === 'light') {
+            document.body.classList.add('light-mode');
+            document.getElementById('theme-icon').classList.replace('fa-moon', 'fa-sun');
         }
 
         let currentMode = 'pomodoro'; // 'pomodoro' | 'short' | 'long'
@@ -456,7 +557,16 @@
         const focusBtn = document.getElementById('focus-mode-btn');
         const exitFocusBtn = document.getElementById('exit-focus-btn');
         const focusArea = document.getElementById('focus-area');
+        const themeToggle = document.getElementById('theme-toggle');
+        const themeIcon = document.getElementById('theme-icon');
+        const pomodoroTab = document.getElementById('pomodoro-tab');
+        const shortTab = document.getElementById('short-tab');
+        const longTab = document.getElementById('long-tab');
+        const soundSelector = document.getElementById('sound-selector');
         let isFocusMode = false;
+        
+        // Initialize progress circle
+        progressCircle.style.strokeDashoffset = "283";
         
         // Modal functions
         function openModal() {
@@ -464,6 +574,7 @@
             document.getElementById('modal-pomodoro-time').value = settings.pomodoro;
             document.getElementById('modal-short-break').value = settings.short;
             document.getElementById('modal-long-break').value = settings.long;
+            soundSelector.value = settings.sound;
             
             settingsModal.classList.remove('modal-hidden');
             settingsModal.classList.add('modal-visible');
@@ -480,7 +591,7 @@
             // Update progress circle (for current mode's time)
             const totalSeconds = settings[currentMode] * 60;
             const remainingSeconds = minutes * 60 + seconds;
-            const offset = (remainingSeconds / totalSeconds) * 283;
+            const offset = 283 - (remainingSeconds / totalSeconds) * 283;
             progressCircle.style.strokeDashoffset = offset;
             
             // Update stats
@@ -500,14 +611,14 @@
                         if (minutes === 0) {
                             clearInterval(timerInterval);
                             
-                            // Play sound and show notification
-                            const audio = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-alarm-digital-clock-beep-989.mp3');
+                            // Play selected sound
+                            const audio = new Audio(sounds[settings.sound]);
                             audio.play();
                             
                             // Notification
                             if (Notification.permission === 'granted') {
                                 new Notification('Pomodoro Completo!', {
-                                    body: 'Hora de uma pausa!',
+                                    body: currentMode === 'pomodoro' ? 'Hora de uma pausa!' : 'Hora de voltar ao trabalho!',
                                     icon: 'https://placehold.co/128/8B5CF6/white?text=P+'
                                 });
                             }
@@ -516,6 +627,13 @@
                             isRunning = false;
                             startPauseBtn.textContent = 'START';
                             startPauseBtn.classList.remove('animate-pulse-slow');
+                            
+                            // If it was a pomodoro session, increment completed sessions
+                            if (currentMode === 'pomodoro') {
+                                completedSessions++;
+                                localStorage.setItem('completedSessions', completedSessions);
+                                updateDisplay();
+                            }
                             return;
                         }
                         minutes--;
@@ -555,13 +673,26 @@
             }
         }
 
+        // Toggle theme
+        function toggleTheme() {
+            document.body.classList.toggle('light-mode');
+            
+            if (document.body.classList.contains('light-mode')) {
+                themeIcon.classList.replace('fa-moon', 'fa-sun');
+                localStorage.setItem('theme', 'light');
+            } else {
+                themeIcon.classList.replace('fa-sun', 'fa-moon');
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+
         // Focus mode toggle
         function toggleFocusMode() {
             isFocusMode = !isFocusMode;
             
             if (isFocusMode) {
                 document.body.classList.add('focus-mode-active');
-                const elementsToHide = document.querySelectorAll(".left-column, .center-column, .right-column");
+                const elementsToHide = document.querySelectorAll(".left-column, .center-column, .right-column, footer");
                 
                 elementsToHide.forEach(el => {
                     el.style.display = 'none';
@@ -569,13 +700,13 @@
 
                 focusBtn.innerHTML = '<i class="fas fa-eye-slash"></i>';
                 
-                // Ajustar foco visual
+                // Adjust visual focus
                 focusArea.classList.add("scale-[1.25]", "transition-transform");
                 document.body.classList.add("flex", "items-center", "justify-center");
                 focusArea.classList.remove("mb-8");
             } else {
                 document.body.classList.remove('focus-mode-active');
-                const elementsToShow = document.querySelectorAll(".left-column, .center-column, .right-column");
+                const elementsToShow = document.querySelectorAll(".left-column, .center-column, .right-column, footer");
                 
                 elementsToShow.forEach(el => {
                     el.style.display = '';
@@ -589,9 +720,6 @@
             }
         }
 
-        focusBtn.addEventListener('click', toggleFocusMode);
-        exitFocusBtn.addEventListener('click', toggleFocusMode);
-        
         // --- To-Do List ---
         let tasks = JSON.parse(localStorage.getItem('pomodoroTasks')) || [];
 
@@ -599,12 +727,12 @@
         const newTaskInput = document.getElementById('new-task-input');
         const addTaskBtn = document.getElementById('add-task-btn');
 
-        // Renderiza as tarefas
+        // Render tasks
         function renderTasks() {
             taskList.innerHTML = '';
             tasks.forEach((task, index) => {
                 const taskItem = document.createElement('div');
-                taskItem.className = "flex items-center bg-gray-700/50 rounded-lg p-3 border border-gray-600";
+                taskItem.className = "flex items-center bg-gray-700/50 rounded-lg p-3 border border-gray-600 task-item";
                 
                 const checkBtn = document.createElement('button');
                 checkBtn.className = `w-5 h-5 rounded-full border-2 mr-3 flex items-center justify-center focus:outline-none transition-colors ${task.completed ? 'border-purple-500 bg-purple-500' : 'border-gray-500 hover:border-purple-500'}`;
@@ -617,7 +745,7 @@
                 
                 const deleteBtn = document.createElement('button');
                 deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
-                deleteBtn.className = 'text-gray-400 hover:text-red-500 ml-4 transition-colors';
+                deleteBtn.className = 'text-gray-400 hover:text-red-500 ml-4 transition-colors btn-press';
                 deleteBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     deleteTask(index);
@@ -630,7 +758,7 @@
             });
         }
 
-        // Adiciona nova tarefa
+        // Add new task
         function addTask() {
             const text = newTaskInput.value.trim();
             if (text !== '') {
@@ -638,35 +766,65 @@
                 saveTasks();
                 renderTasks();
                 newTaskInput.value = '';
+                totalSessions++;
+                localStorage.setItem('totalSessions', totalSessions);
+                updateDisplay();
             }
         }
 
-        // Marca como concluída/não concluída
+        // Toggle task completion
         function toggleTask(index) {
             tasks[index].completed = !tasks[index].completed;
+            
+            if (tasks[index].completed) {
+                completedSessions++;
+            } else {
+                completedSessions--;
+            }
+            
             saveTasks();
             renderTasks();
+            localStorage.setItem('completedSessions', completedSessions);
+            updateDisplay();
         }
 
-        // Deleta tarefa
+        // Delete task
         function deleteTask(index) {
+            if (tasks[index].completed) {
+                completedSessions--;
+            }
             tasks.splice(index, 1);
+            totalSessions--;
+            
             saveTasks();
             renderTasks();
-        }
-
-        // Salva no localStorage
-        function saveTasks() {
-            localStorage.setItem('pomodoroTasks', JSON.stringify(tasks));
-
-            // Atualiza os contadores com base nas tarefas
-            completedSessions = tasks.filter(t => t.completed).length;
-            totalSessions = tasks.length;
-
             localStorage.setItem('completedSessions', completedSessions);
             localStorage.setItem('totalSessions', totalSessions);
+            updateDisplay();
+        }
 
-            updateDisplay(); // Atualiza os elementos visuais
+        // Save tasks to localStorage
+        function saveTasks() {
+            localStorage.setItem('pomodoroTasks', JSON.stringify(tasks));
+        }
+
+        // Switch timer mode
+        function switchMode(mode) {
+            currentMode = mode;
+            resetTimer();
+            
+            // Update active tab
+            pomodoroTab.classList.remove('bg-gradient-to-r', 'from-purple-600', 'to-indigo-600', 'text-white');
+            shortTab.classList.remove('bg-gradient-to-r', 'from-purple-600', 'to-indigo-600', 'text-white');
+            longTab.classList.remove('bg-gradient-to-r', 'from-purple-600', 'to-indigo-600', 'text-white');
+            
+            if (mode === 'pomodoro') {
+                pomodoroTab.classList.add('bg-gradient-to-r', 'from-purple-600', 'to-indigo-600', 'text-white');
+            } else if (mode === 'short') {
+                shortTab.classList.add('bg-gradient-to-r', 'from-purple-600', 'to-indigo-600', 'text-white');
+            } else {
+                longTab.classList.add('bg-gradient-to-r', 'from-purple-600', 'to-indigo-600', 'text-white');
+            }
         }
 
         // Event listeners
@@ -680,15 +838,22 @@
             if (e.key === 'Enter') addTask();
         });
         document.getElementById('reset-btn').addEventListener('click', resetTimer);
+        themeToggle.addEventListener('click', toggleTheme);
+        focusBtn.addEventListener('click', toggleFocusMode);
+        exitFocusBtn.addEventListener('click', toggleFocusMode);
+        pomodoroTab.addEventListener('click', () => switchMode('pomodoro'));
+        shortTab.addEventListener('click', () => switchMode('short'));
+        longTab.addEventListener('click', () => switchMode('long'));
         
         // Save settings
         saveSettingsBtn.addEventListener('click', () => {
             const pomodoro = parseInt(document.getElementById('modal-pomodoro-time').value);
             const short = parseInt(document.getElementById('modal-short-break').value);
             const long = parseInt(document.getElementById('modal-long-break').value);
+            const sound = soundSelector.value;
 
             if (pomodoro > 0 && short > 0 && long > 0) {
-                settings = { pomodoro, short, long };
+                settings = { pomodoro, short, long, sound };
                 localStorage.setItem('pomodoroSettings', JSON.stringify(settings));
                 resetTimer();
                 closeModal();
@@ -709,51 +874,30 @@
             Notification.requestPermission();
         }
         
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            const isTyping = ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName);
+            if (isTyping) return;
+
+            switch (e.code) {
+                case 'Space':
+                    e.preventDefault();
+                    toggleTimer();
+                    break;
+                case 'KeyR':
+                    e.preventDefault();
+                    resetTimer();
+                    break;
+                case 'KeyF':
+                    e.preventDefault();
+                    toggleFullscreen();
+                    break;
+            }
+        });
+
         // Initialize display
         updateDisplay();
         renderTasks();
-        
-        // Keyboard shortcuts (com proteção para inputs)
-        document.addEventListener('keydown', (e) => {
-        const isTyping =
-        document.activeElement.tagName === 'INPUT' ||
-        document.activeElement.tagName === 'TEXTAREA' ||
-        document.activeElement.isContentEditable;
-
-    if (!isTyping) {
-        if (e.code === 'Space') {
-            e.preventDefault();
-            toggleTimer();
-        }
-
-        if (e.code === 'KeyR') {
-            e.preventDefault();
-            resetTimer();
-        }
-
-        if (e.code === 'KeyF') {
-            e.preventDefault();
-            toggleFullscreen();
-        }
-    }
-});
-
-
-        // Troca de modo (Pomodoro / Short / Long)
-        const tabButtons = document.querySelectorAll(".inline-flex button");
-        tabButtons.forEach(btn => {
-            btn.addEventListener("click", () => {
-                const label = btn.textContent.trim();
-                tabButtons.forEach(b => b.classList.remove("bg-gradient-to-r", "from-purple-600", "to-indigo-600", "text-white"));
-                btn.classList.add("bg-gradient-to-r", "from-purple-600", "to-indigo-600", "text-white");
-
-                if (label === "Pomodoro") currentMode = 'pomodoro';
-                if (label === "Short Break") currentMode = 'short';
-                if (label === "Long Break") currentMode = 'long';
-
-                resetTimer();
-            });
-        });
     </script>
     <!-- Rodapé -->
     <footer class="w-full py-6 text-center border-t border-gray-800 mt-12">
