@@ -648,17 +648,21 @@
                                 });
                             }
                             
-                            // Change button to "START" and reset timer
+                            // Change button to "START" and prepare next session
                             isRunning = false;
                             startPauseBtn.textContent = 'START';
                             startPauseBtn.classList.remove('animate-pulse-slow');
-                            
+
+                            // Reset timer values for the next start
+                            minutes = settings[currentMode];
+                            seconds = 0;
+
                             // If it was a pomodoro session, increment completed sessions
                             if (currentMode === 'pomodoro') {
                                 completedSessions++;
                                 localStorage.setItem('completedSessions', completedSessions);
-                                updateDisplay();
                             }
+                            updateDisplay();
                             return;
                         }
                         minutes--;
