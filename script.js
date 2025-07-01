@@ -1,6 +1,5 @@
 // Timer logic
 // Load or set default timer settings
-// 'settings' agora é uma propriedade global do objeto 'window'
 window.settings = {
     pomodoro: 25,
     short: 5,
@@ -27,10 +26,12 @@ if (localStorage.getItem('theme') === 'light') {
 }
 
 let currentMode = 'pomodoro'; // 'pomodoro' | 'short' | 'long'
-let minutes = window.settings.pomodoro; // Usa window.settings aqui
+let minutes = window.settings.pomodoro;
 let seconds = 0;
 let isRunning = false;
 let timerInterval;
+let timeWhenHidden; // Variável para armazenar o tempo quando a aba for escondida
+
 let completedSessions = parseInt(localStorage.getItem('completedSessions')) || 0;
 let totalSessions = parseInt(localStorage.getItem('totalSessions')) || 0;
 
@@ -47,13 +48,14 @@ const pomodoroTab = document.getElementById('pomodoro-tab');
 const shortTab = document.getElementById('short-tab');
 const longTab = document.getElementById('long-tab');
 const focusBtn = document.getElementById('focus-mode-btn');
-const exitFocusBtn = document.getElementById('exit-focus-btn');
+const exitFocusBtn = document = document.getElementById('exit-focus-btn');
 const focusArea = document.getElementById('focus-area');
 
 // Referências para o banner de cookies
 const cookieBanner = document.getElementById('cookie-banner');
 const acceptCookiesBtn = document.getElementById('accept-cookies');
 const denyCookiesBtn = document.getElementById('deny-cookies');
+
 
 // Initialize progress circle
 progressCircle.style.strokeDashoffset = "283";
@@ -63,7 +65,7 @@ function updateDisplay() {
     document.title = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')} | PomodoroPro`; // Update tab title
 
     // Update progress circle (for current mode's time)
-    const totalSeconds = window.settings[currentMode] * 60; // Usa window.settings aqui
+    const totalSeconds = window.settings[currentMode] * 60;
     const remainingSeconds = minutes * 60 + seconds;
     const offset = 283 - (remainingSeconds / totalSeconds) * 283;
     progressCircle.style.strokeDashoffset = offset;
@@ -82,13 +84,15 @@ function toggleTimer() {
         startPauseBtn.classList.remove('animate-pulse-slow');
         startPauseBtn.setAttribute('aria-label', 'Iniciar timer');
     } else {
+        // Quando o timer é iniciado, reset timeWhenHidden
+        timeWhenHidden = null;
         timerInterval = setInterval(() => {
             if (seconds === 0) {
                 if (minutes === 0) {
                     clearInterval(timerInterval);
                     
                     // Play selected sound
-                    const audio = new Audio(sounds[window.settings.sound]); // Usa window.settings aqui
+                    const audio = new Audio(sounds[window.settings.sound]);
                     audio.play();
                     
                     // Notification
@@ -130,12 +134,13 @@ function toggleTimer() {
 // 'resetTimer' agora é uma função global
 window.resetTimer = function() {
     clearInterval(timerInterval);
-    minutes = window.settings[currentMode]; // Usa window.settings aqui
+    minutes = window.settings[currentMode];
     seconds = 0;
     isRunning = false;
     startPauseBtn.textContent = 'START';
     startPauseBtn.classList.remove('animate-pulse-slow');
     startPauseBtn.setAttribute('aria-label', 'Iniciar timer');
+    timeWhenHidden = null; // Reseta também ao reiniciar o timer
     updateDisplay();
 };
 
@@ -472,3 +477,62 @@ document.getElementById('motivational-video').addEventListener('contextmenu', fu
 
 // Atualiza o ano automaticamente no rodapé
 document.getElementById('current-year').textContent = new Date().getFullYear();
+
+// --- Nova lógica para contagem em segundo plano (Visibility API) ---
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        // A aba foi para segundo plano (ou navegador minimizado)
+        if (isRunning) { // Só importa se o timer estava rodando
+            timeWhenHidden = Date.now(); // Armazena o timestamp exato
+            console.log("Timer escondido em:", new Date(timeWhenHidden)); // Para debug
+        }
+    } else {
+        // A aba voltou a ficar ativa
+        if (isRunning && timeWhenHidden) {
+            const timeInBackground = Date.now() - timeWhenHidden; // Tempo em milissegundos que a aba ficou escondida
+            console.log("Timer visível novamente. Tempo em segundo plano:", timeInBackground / 1000, "segundos"); // Para debug
+
+            // Converte milissegundos para segundos e arredonda para baixo
+            const elapsedSeconds = Math.floor(timeInBackground / 1000);
+
+            // Calcula o total de segundos restantes no timer
+            let totalRemainingSeconds = (minutes * 60) + seconds;
+
+            // Subtrai o tempo passado em segundo plano
+            totalRemainingSeconds -= elapsedSeconds;
+
+            if (totalRemainingSeconds <= 0) {
+                // Se o tempo esgotou enquanto estava escondido, finalize o timer
+                minutes = 0;
+                seconds = 0;
+                clearInterval(timerInterval);
+                isRunning = false;
+                startPauseBtn.textContent = 'START';
+                startPauseBtn.classList.remove('animate-pulse-slow');
+                startPauseBtn.setAttribute('aria-label', 'Iniciar timer');
+
+                // Toca som e notifica, mesmo que tarde
+                const audio = new Audio(sounds[window.settings.sound]);
+                audio.play();
+                if (Notification.permission === 'granted') {
+                    new Notification('Pomodoro Completo!', {
+                        body: currentMode === 'pomodoro' ? 'Hora de uma pausa!' : 'Hora de voltar ao trabalho! (concluído em segundo plano)',
+                        icon: 'https://placehold.co/128/8B5CF6/white?text=P+'
+                    });
+                }
+                
+                // Se era um pomodoro, incrementa sessões concluídas
+                if (currentMode === 'pomodoro') {
+                    completedSessions++;
+                    localStorage.setItem('completedSessions', completedSessions);
+                }
+            } else {
+                // Se ainda resta tempo, atualiza minutes e seconds
+                minutes = Math.floor(totalRemainingSeconds / 60);
+                seconds = totalRemainingSeconds % 60;
+            }
+            timeWhenHidden = null; // Reseta a variável
+            updateDisplay(); // Atualiza o display imediatamente
+        }
+    }
+});
