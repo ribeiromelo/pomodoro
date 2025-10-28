@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PomodoroPro | Timer</title>
+    <meta name="keywords" content="pomodoro, timer pomodoro, técnica pomodoro, produtividade, gestão do tempo, foco, concentração, estudos, pomodoro online, timer online">
     <meta property="og:title" content="PomodoroPro - Aumente sua produtividade">
-    <meta property="og:description" content="Técnica Pomodoro avançada com gestão de tarefas e relatórios de produtividade. Ideal para estudantes e profissionais.">
+    <meta name="description" content="Timer Pomodoro online gratuito com gestão de tarefas. Aumente sua produtividade e foco nos estudos e trabalho. Técnica comprovada de 25 minutos de foco + 5 minutos de pausa.">
     <meta property="og:image" content="./imagempomo.png">
     <meta property="og:url" content="https://pomodoropro.online/">
     <meta name="google-adsense-account" content="ca-pub-8727805445586308">
@@ -13,6 +14,12 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%238B5CF6'><path d='M12 2C6.486 2 2 6.486 2 12s4.486 10 10 10 10-4.486 10-10S17.514 2 12 2zm0 18c-4.411 0-8-3.589-8-8s3.589-8 8-8 8 3.589 8 8-3.589 8-8 8z'/><path d='M13 7h-2v5.414l3.293 3.293 1.414-1.414L13 11.586z'/></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#8B5CF6">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8727805445586308"
+     crossorigin="anonymous"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         
@@ -346,6 +353,9 @@
                 <button id="settings-btn" class="text-gray-400 hover:text-purple-500 transition-colors" title="Configurações" aria-label="Abrir configurações do timer">
                     <i class="fas fa-cog"></i>
                 </button>
+                <a href="/blog.html" class="text-gray-400 hover:text-purple-500 transition-colors" title="Blog" aria-label="Ler artigos sobre produtividade">
+                    <i class="fas fa-book"></i>
+                </a>
                 <button id="fullscreen-btn" class="text-gray-400 hover:text-purple-500 transition-colors" title="Tela Cheia" aria-label="Alternar modo tela cheia">
                     <i class="fas fa-expand"></i>
                 </button>
@@ -582,6 +592,19 @@
             <button id="accept-cookies" class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition btn-press" aria-label="Aceitar uso de cookies e armazenamento local">
                 Aceitar
             </button>
+    <!-- Google AdSense - Horizontal Banner (Responsive) -->
+    <div class="w-full max-w-6xl mx-auto px-4 my-8">
+        <ins class="adsbygoogle"
+             style="display:block"
+             data-ad-client="ca-pub-8727805445586308"
+             data-ad-slot="1234567890"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+        <script>
+             (adsbygoogle = window.adsbygoogle || []).push({});
+        </script>
+    </div>
+
             <button id="deny-cookies" class="bg-gray-700 hover:bg-gray-600 text-gray-300 font-semibold py-2 px-4 rounded-lg transition btn-press" aria-label="Recusar uso de cookies e armazenamento local">
                 Recusar
             </button>
@@ -590,12 +613,32 @@
 
     <footer class="w-full py-6 text-center border-t border-gray-800 mt-12">
         <div class="text-gray-400 text-sm">
-            <p>&copy; <span id="current-year">2023</span> Pomodoro Timer - controle seu tempo</p>
+            <p>&copy; <span id="current-year">2024</span> PomodoroPro - Aumente sua produtividade</p>
             <p class="mt-1">Desenvolvido por <span class="font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-indigo-300 footer-author-name">Erique Melo</span></p>
+            <p class="mt-2">
+                <a href="/privacy.html" class="text-purple-400 hover:text-purple-300 mx-2">Política de Privacidade</a>
+                <span class="mx-1">|</span>
+                <a href="/terms.html" class="text-purple-400 hover:text-purple-300 mx-2">Termos de Uso</a>
+            </p>
         </div>
     </footer>
 
     <script src="script.js"></script>
     <script src="modal-settings.js"></script>
+    <script>
+        // Register Service Worker for PWA
+        if ("serviceWorker" in navigator) {
+            window.addEventListener("load", () => {
+                navigator.serviceWorker
+                    .register("/service-worker.js")
+                    .then(registration => {
+                        console.log("Service Worker registered:", registration);
+                    })
+                    .catch(err => {
+                        console.log("Service Worker registration failed:", err);
+                    });
+            });
+        }
+    </script>
 </body>
 </html>

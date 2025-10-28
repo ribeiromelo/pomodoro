@@ -1,4 +1,4 @@
-// Timer logic
+// Timer logic with Web Worker and Wake Lock support
 // Load or set default timer settings
 window.settings = {
     pomodoro: 25,
@@ -25,12 +25,29 @@ if (localStorage.getItem('theme') === 'light') {
     document.getElementById('theme-icon').classList.replace('fa-moon', 'fa-sun');
 }
 
-let currentMode = 'pomodoro'; // 'pomodoro' | 'short' | 'long'
+let currentMode = 'pomodoro';
 let minutes = window.settings.pomodoro;
 let seconds = 0;
 let isRunning = false;
 let timerInterval;
-let timeWhenHidden; // Variável para armazenar o tempo quando a aba for escondida
+
+// Web Worker for background timer
+let timerWorker = null;
+let wakeLock = null;
+let useWorker = true;
+
+// Initialize Web Worker
+try {
+    timerWorker = new Worker('timer-worker.js');
+    timerWorker.addEventListener('message', handleWorkerMessage);
+    timerWorker.addEventListener('error', (e) => {
+        console.error('Timer Worker Error:', e);
+        useWorker = false;
+    });
+} catch (e) {
+    console.error('Web Worker not supported:', e);
+    useWorker = false;
+}
 
 let completedSessions = parseInt(localStorage.getItem('completedSessions')) || 0;
 let totalSessions = parseInt(localStorage.getItem('totalSessions')) || 0;
@@ -48,23 +65,66 @@ const pomodoroTab = document.getElementById('pomodoro-tab');
 const shortTab = document.getElementById('short-tab');
 const longTab = document.getElementById('long-tab');
 const focusBtn = document.getElementById('focus-mode-btn');
-const exitFocusBtn = document = document.getElementById('exit-focus-btn');
+const exitFocusBtn = document.getElementById('exit-focus-btn');
 const focusArea = document.getElementById('focus-area');
 
-// Referências para o banner de cookies
+// Cookie banner references
 const cookieBanner = document.getElementById('cookie-banner');
 const acceptCookiesBtn = document.getElementById('accept-cookies');
 const denyCookiesBtn = document.getElementById('deny-cookies');
 
-
 // Initialize progress circle
 progressCircle.style.strokeDashoffset = "283";
 
+// Handle messages from Web Worker
+function handleWorkerMessage(e) {
+    const { type, minutes: workerMinutes, seconds: workerSeconds, mode } = e.data;
+    
+    if (type === 'tick') {
+        minutes = workerMinutes;
+        seconds = workerSeconds;
+        updateDisplay();
+    } else if (type === 'completed') {
+        handleTimerComplete(mode);
+    }
+}
+
+function handleTimerComplete(mode) {
+    isRunning = false;
+    startPauseBtn.textContent = 'START';
+    startPauseBtn.classList.remove('animate-pulse-slow');
+    startPauseBtn.setAttribute('aria-label', 'Iniciar timer');
+    
+    // Play selected sound
+    const audio = new Audio(sounds[window.settings.sound]);
+    audio.play().catch(e => console.log('Audio play failed:', e));
+    
+    // Notification
+    if (Notification.permission === 'granted') {
+        new Notification('Pomodoro Completo!', {
+            body: mode === 'pomodoro' ? 'Hora de uma pausa!' : 'Hora de voltar ao trabalho!',
+            icon: 'https://placehold.co/128/8B5CF6/white?text=P+',
+            requireInteraction: true
+        });
+    }
+    
+    // If it was a pomodoro session, increment completed sessions
+    if (mode === 'pomodoro') {
+        completedSessions++;
+        localStorage.setItem('completedSessions', completedSessions);
+    }
+    
+    // Release wake lock
+    releaseWakeLock();
+    
+    updateDisplay();
+}
+
 function updateDisplay() {
     timeDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    document.title = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')} | PomodoroPro`; // Update tab title
+    document.title = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')} | PomodoroPro`;
 
-    // Update progress circle (for current mode's time)
+    // Update progress circle
     const totalSeconds = window.settings[currentMode] * 60;
     const remainingSeconds = minutes * 60 + seconds;
     const offset = 283 - (remainingSeconds / totalSeconds) * 283;
@@ -77,70 +137,114 @@ function updateDisplay() {
     document.querySelector('[role="progressbar"]').setAttribute('aria-valuenow', totalSessions > 0 ? ((completedSessions / totalSessions) * 100).toFixed(0) : '0');
 }
 
+// Wake Lock API to prevent device sleep
+async function requestWakeLock() {
+    if ('wakeLock' in navigator) {
+        try {
+            wakeLock = await navigator.wakeLock.request('screen');
+            console.log('Wake Lock activated');
+            
+            wakeLock.addEventListener('release', () => {
+                console.log('Wake Lock released');
+            });
+        } catch (err) {
+            console.error(`Wake Lock error: ${err.name}, ${err.message}`);
+        }
+    }
+}
+
+function releaseWakeLock() {
+    if (wakeLock !== null) {
+        wakeLock.release()
+            .then(() => {
+                wakeLock = null;
+            })
+            .catch(err => console.error('Wake Lock release error:', err));
+    }
+}
+
+// Reacquire wake lock when page becomes visible
+document.addEventListener('visibilitychange', async () => {
+    if (wakeLock !== null && document.visibilityState === 'visible') {
+        await requestWakeLock();
+    }
+});
+
 function toggleTimer() {
     if (isRunning) {
-        clearInterval(timerInterval);
+        // Pause
+        if (useWorker && timerWorker) {
+            timerWorker.postMessage({ action: 'pause' });
+        } else {
+            clearInterval(timerInterval);
+        }
+        
         startPauseBtn.textContent = 'START';
         startPauseBtn.classList.remove('animate-pulse-slow');
         startPauseBtn.setAttribute('aria-label', 'Iniciar timer');
+        releaseWakeLock();
     } else {
-        // Quando o timer é iniciado, reset timeWhenHidden
-        timeWhenHidden = null;
-        timerInterval = setInterval(() => {
-            if (seconds === 0) {
-                if (minutes === 0) {
-                    clearInterval(timerInterval);
-                    
-                    // Play selected sound
-                    const audio = new Audio(sounds[window.settings.sound]);
-                    audio.play();
-                    
-                    // Notification
-                    if (Notification.permission === 'granted') {
-                        new Notification('Pomodoro Completo!', {
-                            body: currentMode === 'pomodoro' ? 'Hora de uma pausa!' : 'Hora de voltar ao trabalho!',
-                            icon: 'https://placehold.co/128/8B5CF6/white?text=P+'
-                        });
-                    }
-                    
-                    // Change button to "START" and reset timer
-                    isRunning = false;
-                    startPauseBtn.textContent = 'START';
-                    startPauseBtn.classList.remove('animate-pulse-slow');
-                    startPauseBtn.setAttribute('aria-label', 'Iniciar timer');
-                    
-                    // If it was a pomodoro session, increment completed sessions
-                    if (currentMode === 'pomodoro') {
-                        completedSessions++;
-                        localStorage.setItem('completedSessions', completedSessions);
-                        updateDisplay();
-                    }
-                    return;
+        // Start
+        if (useWorker && timerWorker) {
+            timerWorker.postMessage({
+                action: 'start',
+                data: {
+                    minutes: minutes,
+                    seconds: seconds,
+                    mode: currentMode,
+                    totalSeconds: window.settings[currentMode] * 60
                 }
-                minutes--;
-                seconds = 59;
-            } else {
-                seconds--;
-            }
-            updateDisplay();
-        }, 1000);
+            });
+        } else {
+            // Fallback to regular timer
+            timerInterval = setInterval(() => {
+                if (seconds === 0) {
+                    if (minutes === 0) {
+                        clearInterval(timerInterval);
+                        handleTimerComplete(currentMode);
+                        return;
+                    }
+                    minutes--;
+                    seconds = 59;
+                } else {
+                    seconds--;
+                }
+                updateDisplay();
+            }, 1000);
+        }
+        
         startPauseBtn.textContent = 'PAUSE';
         startPauseBtn.classList.add('animate-pulse-slow');
         startPauseBtn.setAttribute('aria-label', 'Pausar timer');
+        
+        // Request wake lock to keep device awake
+        requestWakeLock();
     }
     isRunning = !isRunning;
 }
 
-// 'resetTimer' agora é uma função global
 window.resetTimer = function() {
-    clearInterval(timerInterval);
+    if (useWorker && timerWorker) {
+        timerWorker.postMessage({
+            action: 'reset',
+            data: {
+                minutes: window.settings[currentMode],
+                seconds: 0,
+                mode: currentMode,
+                totalSeconds: window.settings[currentMode] * 60
+            }
+        });
+    } else {
+        clearInterval(timerInterval);
+    }
+    
     minutes = window.settings[currentMode];
     seconds = 0;
     isRunning = false;
     startPauseBtn.textContent = 'START';
     startPauseBtn.classList.remove('animate-pulse-slow');
     startPauseBtn.setAttribute('aria-label', 'Iniciar timer');
-    timeWhenHidden = null; // Reseta também ao reiniciar o timer
+    releaseWakeLock();
     updateDisplay();
 };
 
@@ -160,27 +264,25 @@ function toggleFullscreen() {
     }
 }
 
-// Toggle theme
 function toggleTheme() {
     document.body.classList.toggle('light-mode');
     
     if (document.body.classList.contains('light-mode')) {
         themeIcon.classList.replace('fa-moon', 'fa-sun');
         localStorage.setItem('theme', 'light');
-        cookieBanner.classList.add('light-mode'); // Aplica tema ao banner
+        cookieBanner.classList.add('light-mode');
     } else {
         themeIcon.classList.replace('fa-sun', 'fa-moon');
         localStorage.setItem('theme', 'dark');
-        cookieBanner.classList.remove('light-mode'); // Remove tema do banner
+        cookieBanner.classList.remove('light-mode');
     }
 }
 
-// Focus mode toggle
 let isFocusMode = false;
 function toggleFocusMode() {
     isFocusMode = !isFocusMode;
     
-    const elementsToHide = document.querySelectorAll(".left-column, .center-column, .right-column, footer, .main-container > div:first-child, .main-container > div:nth-child(2)"); // Hide header and tabs
+    const elementsToHide = document.querySelectorAll(".left-column, .center-column, .right-column, footer, .main-container > div:first-child, .main-container > div:nth-child(2)");
 
     if (isFocusMode) {
         document.body.classList.add('focus-mode-active');
@@ -191,16 +293,15 @@ function toggleFocusMode() {
         focusBtn.innerHTML = '<i class="fas fa-eye-slash"></i>';
         focusBtn.setAttribute('aria-label', 'Sair do Modo Foco Total');
         
-        // Adjust visual focus
         focusArea.classList.add("scale-[1.25]", "transition-transform");
         document.body.classList.add("flex", "items-center", "justify-center");
         focusArea.classList.remove("mb-8");
-        focusArea.style.margin = "auto"; // Center the timer
-        cookieBanner.style.display = 'none'; // Esconde o banner de cookies no modo foco
+        focusArea.style.margin = "auto";
+        cookieBanner.style.display = 'none';
     } else {
         document.body.classList.remove('focus-mode-active');
         elementsToHide.forEach(el => {
-            el.style.display = ''; // Reset display to default
+            el.style.display = '';
         });
 
         focusBtn.innerHTML = '<i class="fas fa-eye"></i>';
@@ -209,9 +310,9 @@ function toggleFocusMode() {
         focusArea.classList.remove("scale-[1.25]");
         document.body.classList.remove("flex", "items-center", "justify-center");
         focusArea.classList.add("mb-8");
-        focusArea.style.margin = ""; // Remove custom margin
-        if (localStorage.getItem('cookieConsent') !== 'accepted') { // Mostra se não aceitou
-            cookieBanner.style.display = 'flex'; // Volta a mostrar o banner de cookies
+        focusArea.style.margin = "";
+        if (localStorage.getItem('cookieConsent') !== 'accepted') {
+            cookieBanner.style.display = 'flex';
         }
     }
 }
@@ -224,7 +325,6 @@ const newTaskInput = document.getElementById('new-task-input');
 const addTaskBtn = document.getElementById('add-task-btn');
 const noTasksMessage = document.getElementById('no-tasks-message');
 
-// Render tasks
 function renderTasks() {
     taskList.innerHTML = '';
     if (tasks.length === 0) {
@@ -247,7 +347,7 @@ function renderTasks() {
         const taskText = document.createElement('span');
         taskText.textContent = task.text;
         taskText.className = `flex-1 text-white ${task.completed ? 'task-completed' : ''}`;
-        taskText.setAttribute('aria-live', 'polite'); // Announce changes to screen readers
+        taskText.setAttribute('aria-live', 'polite');
         
         const deleteBtn = document.createElement('button');
         deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
@@ -265,7 +365,6 @@ function renderTasks() {
     });
 }
 
-// Add new task
 function addTask() {
     const text = newTaskInput.value.trim();
     if (text !== '') {
@@ -279,7 +378,6 @@ function addTask() {
     }
 }
 
-// Toggle task completion
 function toggleTask(index) {
     tasks[index].completed = !tasks[index].completed;
     
@@ -295,7 +393,6 @@ function toggleTask(index) {
     updateDisplay();
 }
 
-// Delete task
 function deleteTask(index) {
     if (tasks[index].completed) {
         completedSessions--;
@@ -310,17 +407,14 @@ function deleteTask(index) {
     updateDisplay();
 }
 
-// Save tasks to localStorage
 function saveTasks() {
     localStorage.setItem('pomodoroTasks', JSON.stringify(tasks));
 }
 
-// Switch timer mode
 function switchMode(mode) {
     currentMode = mode;
-    window.resetTimer(); // Chama a versão global de resetTimer
+    window.resetTimer();
     
-    // Update active tab
     pomodoroTab.classList.remove('bg-gradient-to-r', 'from-purple-600', 'to-indigo-600', 'text-white');
     shortTab.classList.remove('bg-gradient-to-r', 'from-purple-600', 'to-indigo-600', 'text-white');
     longTab.classList.remove('bg-gradient-to-r', 'from-purple-600', 'to-indigo-600', 'text-white');
@@ -341,9 +435,8 @@ function switchMode(mode) {
     }
 }
 
-// --- Cookie Consent Logic ---
+// Cookie Consent
 function showCookieBanner() {
-    // Verifica se o usuário já aceitou os cookies
     if (localStorage.getItem('cookieConsent') !== 'accepted') {
         cookieBanner.classList.add('show');
         cookieBanner.classList.remove('hidden');
@@ -357,7 +450,7 @@ function hideCookieBanner() {
     cookieBanner.classList.remove('show');
     cookieBanner.addEventListener('transitionend', () => {
         cookieBanner.classList.add('hidden');
-    }, { once: true }); // Garante que o evento só seja executado uma vez
+    }, { once: true });
 }
 
 acceptCookiesBtn.addEventListener('click', () => {
@@ -366,26 +459,15 @@ acceptCookiesBtn.addEventListener('click', () => {
 });
 
 denyCookiesBtn.addEventListener('click', () => {
-    // Para este caso simples, "recusar" significa não salvar nada.
-    // Em apps mais complexos, talvez seria necessário limpar dados ou desabilitar features.
     localStorage.setItem('cookieConsent', 'denied');
     hideCookieBanner();
-    // Você pode adicionar uma lógica aqui para limpar dados existentes se o usuário recusar
-    // Por exemplo, para "resetar" as configurações e tarefas:
-    // localStorage.removeItem('pomodoroSettings');
-    // localStorage.removeItem('pomodoroTasks');
-    // localStorage.removeItem('completedSessions');
-    // localStorage.removeItem('totalSessions');
-    // window.location.reload(); // Recarregar a página para aplicar as novas configurações
 });
 
-// Exibe o banner de cookies quando a página carrega
 document.addEventListener('DOMContentLoaded', showCookieBanner);
-
 
 // Event listeners
 startPauseBtn.addEventListener('click', toggleTimer);
-document.getElementById('reset-btn').addEventListener('click', window.resetTimer); // Chama a versão global
+document.getElementById('reset-btn').addEventListener('click', window.resetTimer);
 fullscreenBtn.addEventListener('click', toggleFullscreen);
 themeToggle.addEventListener('click', toggleTheme);
 focusBtn.addEventListener('click', toggleFocusMode);
@@ -399,7 +481,7 @@ newTaskInput.addEventListener('keydown', e => {
 });
 
 // Notification permission
-if (Notification.permission !== 'granted') {
+if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
     Notification.requestPermission();
 }
 
@@ -415,7 +497,7 @@ document.addEventListener('keydown', (e) => {
             break;
         case 'KeyR':
             e.preventDefault();
-            window.resetTimer(); // Chama a versão global
+            window.resetTimer();
             break;
         case 'KeyF':
             e.preventDefault();
@@ -428,12 +510,11 @@ document.addEventListener('keydown', (e) => {
 updateDisplay();
 renderTasks();
 
-// Controles do vídeo motivacional
+// Video controls
 const video = document.getElementById('motivational-video');
 const overlay = document.getElementById('video-overlay');
 const playButton = document.getElementById('play-button');
 
-// Mostrar/ocultar overlay
 video.addEventListener('play', () => {
     overlay.style.opacity = '0';
     setTimeout(() => {
@@ -448,7 +529,6 @@ video.addEventListener('pause', () => {
     }, 10);
 });
 
-// Controles de clique
 playButton.addEventListener('click', (e) => {
     e.stopPropagation();
     video.play();
@@ -462,77 +542,20 @@ overlay.addEventListener('click', () => {
     }
 });
 
-// Bloqueia atalhos de teclado
-document.addEventListener('keydown', function(e) {
-    if (e.ctrlKey && (e.key === 's' || e.key === 'S')) {
-        e.preventDefault();
-    }
-});
-
-// Bloqueia menu de contexto no vídeo
+// Prevent context menu on video
 document.getElementById('motivational-video').addEventListener('contextmenu', function(e) {
     e.preventDefault();
     return false;
 });
 
-// Atualiza o ano automaticamente no rodapé
+// Update footer year
 document.getElementById('current-year').textContent = new Date().getFullYear();
 
-// --- Nova lógica para contagem em segundo plano (Visibility API) ---
-document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-        // A aba foi para segundo plano (ou navegador minimizado)
-        if (isRunning) { // Só importa se o timer estava rodando
-            timeWhenHidden = Date.now(); // Armazena o timestamp exato
-            console.log("Timer escondido em:", new Date(timeWhenHidden)); // Para debug
+// Sync with worker periodically to ensure accuracy
+if (useWorker && timerWorker) {
+    setInterval(() => {
+        if (isRunning) {
+            timerWorker.postMessage({ action: 'sync' });
         }
-    } else {
-        // A aba voltou a ficar ativa
-        if (isRunning && timeWhenHidden) {
-            const timeInBackground = Date.now() - timeWhenHidden; // Tempo em milissegundos que a aba ficou escondida
-            console.log("Timer visível novamente. Tempo em segundo plano:", timeInBackground / 1000, "segundos"); // Para debug
-
-            // Converte milissegundos para segundos e arredonda para baixo
-            const elapsedSeconds = Math.floor(timeInBackground / 1000);
-
-            // Calcula o total de segundos restantes no timer
-            let totalRemainingSeconds = (minutes * 60) + seconds;
-
-            // Subtrai o tempo passado em segundo plano
-            totalRemainingSeconds -= elapsedSeconds;
-
-            if (totalRemainingSeconds <= 0) {
-                // Se o tempo esgotou enquanto estava escondido, finalize o timer
-                minutes = 0;
-                seconds = 0;
-                clearInterval(timerInterval);
-                isRunning = false;
-                startPauseBtn.textContent = 'START';
-                startPauseBtn.classList.remove('animate-pulse-slow');
-                startPauseBtn.setAttribute('aria-label', 'Iniciar timer');
-
-                // Toca som e notifica, mesmo que tarde
-                const audio = new Audio(sounds[window.settings.sound]);
-                audio.play();
-                if (Notification.permission === 'granted') {
-                    new Notification('Pomodoro Completo!', {
-                        body: currentMode === 'pomodoro' ? 'Hora de uma pausa!' : 'Hora de voltar ao trabalho! (concluído em segundo plano)',
-                        icon: 'https://placehold.co/128/8B5CF6/white?text=P+'
-                    });
-                }
-                
-                // Se era um pomodoro, incrementa sessões concluídas
-                if (currentMode === 'pomodoro') {
-                    completedSessions++;
-                    localStorage.setItem('completedSessions', completedSessions);
-                }
-            } else {
-                // Se ainda resta tempo, atualiza minutes e seconds
-                minutes = Math.floor(totalRemainingSeconds / 60);
-                seconds = totalRemainingSeconds % 60;
-            }
-            timeWhenHidden = null; // Reseta a variável
-            updateDisplay(); // Atualiza o display imediatamente
-        }
-    }
-});
+    }, 10000); // Sync every 10 seconds
+}

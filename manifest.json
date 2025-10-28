@@ -1,0 +1,35 @@
+{
+  "name": "PomodoroPro - Timer de Produtividade",
+  "short_name": "PomodoroPro",
+  "description": "Técnica Pomodoro avançada com gestão de tarefas e relatórios de produtividade. Aumente seu foco e produtividade.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#8B5CF6",
+  "orientation": "portrait-primary",
+  "categories": ["productivity", "education", "lifestyle"],
+  "icons": [
+    {
+      "src": "/imagempomo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/imagempomo.png",
+      "sizes": "1920x1080",
+      "type": "image/png"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Iniciar Pomodoro",
+      "short_name": "Pomodoro",
+      "description": "Iniciar um timer Pomodoro de 25 minutos",
+      "url": "/?mode=pomodoro",
+      "icons": [{ "src": "/imagempomo.png", "sizes": "192x192" }]
+    }
+  ]
+}
